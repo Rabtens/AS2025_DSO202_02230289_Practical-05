@@ -1,0 +1,106 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  annotations:
+    training.example.com/tier: production
+  labels:
+    environment: prod
+  name: webapp-prod
+---
+apiVersion: v1
+data:
+  index.html: |
+    <!DOCTYPE html>
+    <html>
+      <head><title>webapp - prod</title></head>
+      <body style="background:#e3f2fd">
+        <h1>PROD - production environment</h1>
+        <p>Namespace: webapp-prod | Replicas: 3</p>
+      </body>
+    </html>
+kind: ConfigMap
+metadata:
+  annotations:
+    training.example.com/tier: production
+  labels:
+    app.kubernetes.io/managed-by: kustomize
+    app.kubernetes.io/part-of: kustomize-practical
+    environment: prod
+  name: web-content-tg96t2cg8b
+  namespace: webapp-prod
+---
+apiVersion: v1
+kind: Service
+metadata:
+  annotations:
+    training.example.com/tier: production
+  labels:
+    app.kubernetes.io/managed-by: kustomize
+    app.kubernetes.io/name: webapp
+    app.kubernetes.io/part-of: kustomize-practical
+    environment: prod
+  name: webapp
+  namespace: webapp-prod
+spec:
+  ports:
+  - name: http
+    port: 80
+    targetPort: http
+  selector:
+    app.kubernetes.io/name: webapp
+  type: ClusterIP
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  annotations:
+    training.example.com/change-window: sunday-02:00-04:00
+    training.example.com/description: NGINX demo workload for the Kustomize practical
+    training.example.com/tier: production
+  labels:
+    app.kubernetes.io/managed-by: kustomize
+    app.kubernetes.io/name: webapp
+    app.kubernetes.io/part-of: kustomize-practical
+    environment: prod
+  name: webapp
+  namespace: webapp-prod
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: webapp
+  template:
+    metadata:
+      annotations:
+        training.example.com/tier: production
+      labels:
+        app.kubernetes.io/name: webapp
+        environment: prod
+    spec:
+      containers:
+      - image: nginx:1.31-alpine
+        name: nginx
+        ports:
+        - containerPort: 80
+          name: http
+        readinessProbe:
+          httpGet:
+            path: /
+            port: http
+          initialDelaySeconds: 2
+          periodSeconds: 5
+        resources:
+          limits:
+            cpu: 250m
+            memory: 256Mi
+          requests:
+            cpu: 100m
+            memory: 128Mi
+        volumeMounts:
+        - mountPath: /usr/share/nginx/html
+          name: web-content
+          readOnly: true
+      volumes:
+      - configMap:
+          name: web-content-tg96t2cg8b
+        name: web-content

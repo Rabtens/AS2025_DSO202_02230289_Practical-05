@@ -1,0 +1,8 @@
+# Strategic merge patch: only the fields written here are merged into
+# the base Deployment.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: webapp
+  annotations:
+    training.example.com/change-window: "weekdays-09:00-17:00"

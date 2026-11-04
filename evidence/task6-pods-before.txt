@@ -1,0 +1,2 @@
+NAME                     READY   STATUS    RESTARTS   AGE   IP           NODE            NOMINATED NODE   READINESS GATES
+webapp-585dffc86-q4kck   1/1     Running   0          10m   10.244.2.2   worker-node-1   <none>           <none>

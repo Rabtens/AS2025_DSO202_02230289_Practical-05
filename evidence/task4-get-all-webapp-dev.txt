@@ -1,0 +1,11 @@
+NAME                         READY   STATUS    RESTARTS   AGE   IP           NODE            NOMINATED NODE   READINESS GATES
+pod/webapp-585dffc86-q4kck   1/1     Running   0          91s   10.244.2.2   worker-node-1   <none>           <none>
+
+NAME             TYPE        CLUSTER-IP     EXTERNAL-IP   PORT(S)   AGE   SELECTOR
+service/webapp   ClusterIP   10.96.133.67   <none>        80/TCP    92s   app.kubernetes.io/name=webapp
+
+NAME                     READY   UP-TO-DATE   AVAILABLE   AGE   CONTAINERS   IMAGES              SELECTOR
+deployment.apps/webapp   1/1     1            1           92s   nginx        nginx:1.30-alpine   app.kubernetes.io/name=webapp
+
+NAME                               DESIRED   CURRENT   READY   AGE   CONTAINERS   IMAGES              SELECTOR
+replicaset.apps/webapp-585dffc86   1         1         1       91s   nginx        nginx:1.30-alpine   app.kubernetes.io/name=webapp,pod-template-hash=585dffc86

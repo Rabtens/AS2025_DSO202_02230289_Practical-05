@@ -1,11 +1,5 @@
-# DSO202 Practical 5 — Environment-Specific Configuration with Kustomize on Kind
+# DSO202 Practical 5 - Environment-Specific Configuration with Kustomize on Kind
 
-| | |
-|---|---|
-| **Name** | Kuenzang Rabten |
-| **Student ID** | 02230289 |
-| **Module** | DSO202 |
-| **Practical** | 05 — Environment-Specific Configuration with Kustomize on Kind |
 
 ## Purpose
 
@@ -17,28 +11,42 @@ The repository can be rebuilt from `cluster/` and `examples/`. Command output an
 
 ## Contents
 
-- [Versions and Images](#versions-and-images)
-- [Repository Structure](#repository-structure)
-- [Rebuild From an Empty Machine](#rebuild-from-an-empty-machine)
-- [1. Objective](#1-objective)
-- [2. Environment](#2-environment)
-- [3. Procedure and Observations](#3-procedure-and-observations)
-  - [Task 0 — Pre-flight](#task-0--pre-flight)
-  - [Task 1 — Read the repository before running it](#task-1--read-the-repository-before-running-it)
-  - [Task 2 — Render the base](#task-2--render-the-base)
-  - [Task 3 — Compare dev and prod without touching the cluster](#task-3--compare-dev-and-prod-without-touching-the-cluster)
-  - [Task 4 — Deploy dev safely](#task-4--deploy-dev-safely)
-  - [Task 5 — Reach the application](#task-5--reach-the-application)
-  - [Task 6 — Prove the ConfigMap hash/rollout chain](#task-6--prove-the-configmap-hashrollout-chain)
-  - [Task 7 — Deploy staging and prod](#task-7--deploy-staging-and-prod)
-  - [Task 8 — Inspect what the prod patch changed](#task-8--inspect-what-the-prod-patch-changed)
-  - [Task 9 — Create my own QA overlay](#task-9--create-my-own-qa-overlay)
-  - [Task 10 — Cleanup](#task-10--cleanup)
-  - [Challenge Extension — namePrefix sandbox overlay](#challenge-extension--nameprefix-sandbox-overlay)
-- [4. Analysis — Strategic Merge vs JSON 6902](#4-analysis--strategic-merge-vs-json-6902)
-- [5. Reflection](#5-reflection)
-- [6. Practical Report Evidence Checklist](#6-practical-report-evidence-checklist)
-- [7. References](#7-references)
+- [DSO202 Practical 5 - Environment-Specific Configuration with Kustomize on Kind](#dso202-practical-5---environment-specific-configuration-with-kustomize-on-kind)
+  - [Purpose](#purpose)
+  - [Contents](#contents)
+  - [Versions and Images](#versions-and-images)
+  - [Repository Structure](#repository-structure)
+    - [Lab topology](#lab-topology)
+  - [Rebuild From an Empty Machine](#rebuild-from-an-empty-machine)
+  - [1. Objective](#1-objective)
+  - [2. Environment](#2-environment)
+  - [3. Procedure and Observations](#3-procedure-and-observations)
+    - [Task 0 — Pre-flight](#task-0--pre-flight)
+    - [Task 1 — Read the repository before running it](#task-1--read-the-repository-before-running-it)
+      - [Base files](#base-files)
+      - [Overlay files (dev, staging, prod)](#overlay-files-dev-staging-prod)
+      - [Questions](#questions)
+    - [Task 2 — Render the base](#task-2--render-the-base)
+      - [Checkpoint — why is the ConfigMap name not exactly `web-content`?](#checkpoint--why-is-the-configmap-name-not-exactly-web-content)
+    - [Task 3 — Compare dev and prod without touching the cluster](#task-3--compare-dev-and-prod-without-touching-the-cluster)
+      - [Environment differences found (more than five)](#environment-differences-found-more-than-five)
+    - [Task 4 — Deploy dev safely](#task-4--deploy-dev-safely)
+    - [Task 5 — Reach the application](#task-5--reach-the-application)
+    - [Task 6 — Prove the ConfigMap hash/rollout chain](#task-6--prove-the-configmap-hashrollout-chain)
+      - [The chain, in my own words](#the-chain-in-my-own-words)
+    - [Task 7 — Deploy staging and prod](#task-7--deploy-staging-and-prod)
+    - [Task 8 — Inspect what the prod patch changed](#task-8--inspect-what-the-prod-patch-changed)
+      - [Questions](#questions-1)
+    - [Task 9 — Create my own QA overlay](#task-9--create-my-own-qa-overlay)
+  - [](#)
+    - [Task 10 — Cleanup](#task-10--cleanup)
+    - [Challenge Extension — namePrefix sandbox overlay](#challenge-extension--nameprefix-sandbox-overlay)
+      - [Prediction (written before rendering)](#prediction-written-before-rendering)
+      - [Render and compare](#render-and-compare)
+  - [4. Analysis — Strategic Merge vs JSON 6902](#4-analysis--strategic-merge-vs-json-6902)
+  - [5. Reflection](#5-reflection)
+  - [6. Practical Report Evidence Checklist](#6-practical-report-evidence-checklist)
+  - [7. References](#7-references)
 
 ---
 
@@ -102,11 +110,17 @@ Run these from the repository root (`practical-05/`).
 docker info --format '{{.ServerVersion}}'
 kind version
 kubectl version --client
+```
+![alt text](<evidence/Screenshot from 2026-11-04 13-25-23.png>)
 
+```
 kind create cluster --config cluster/kind-cluster.yaml
 kubectl config use-context kind-dso202-p5
 kubectl get nodes -o wide
+```
+![alt text](<evidence/Screenshot from 2026-11-04 13-28-00.png>)
 
+```
 # render → diff → apply → verify for each environment
 for env in dev staging prod qa; do
   kubectl kustomize examples/webapp/overlays/$env > /dev/null && echo "$env renders OK"
@@ -117,6 +131,7 @@ done
 
 kubectl get deploy -A -l app.kubernetes.io/name=webapp
 ```
+![alt text](<evidence/Screenshot from 2026-11-04 13-37-54.png>)
 
 To remove everything:
 
@@ -153,10 +168,7 @@ Create the cluster first:
 ```sh
 kind create cluster --config cluster/kind-cluster.yaml
 ```
-
-> **Screenshot evidence:** `evidence/00-kind-create-cluster.png`
->
-> ![kind create cluster](evidence/00-kind-create-cluster.png)
+![alt text](<evidence/Screenshot from 2026-11-04 13-45-03.png>)
 
 ---
 
@@ -174,21 +186,11 @@ kubectl apply --help | grep -- '-k, --kustomize'
 
 Checks:
 
-- [ ] The current context (`kind-dso202-p5`) reaches the Kind cluster (`cluster-info` shows `https://127.0.0.1:<port>`).
-- [ ] All three nodes (`control-plane`, `worker-node-1`, `worker-node-2`) are `Ready`.
-- [ ] `kubectl version --client -o yaml` shows a `kustomizeVersion` (v5.5.0), so `kubectl kustomize` and `kubectl apply -k` are supported.
+- [x] The current context (`kind-dso202-p5`) reaches the Kind cluster (`cluster-info` shows `https://127.0.0.1:<port>`).
+- [x] All three nodes (`control-plane`, `worker-node-1`, `worker-node-2`) are `Ready`.
+- [x] `kubectl version --client -o yaml` shows a `kustomizeVersion` (v5.5.0), so `kubectl kustomize` and `kubectl apply -k` are supported.
 
-> **Screenshot evidence:** `evidence/task0-cluster-info.png`
->
-> ![Task 0 - cluster-info](evidence/task0-cluster-info.png)
-
-> **Screenshot evidence:** `evidence/task0-get-nodes.png`
->
-> ![Task 0 - get nodes](evidence/task0-get-nodes.png)
-
-> **Screenshot evidence:** `evidence/task0-kubectl-version.png`
->
-> ![Task 0 - kubectl version with kustomizeVersion](evidence/task0-kubectl-version.png)
+![alt text](<evidence/Screenshot from 2026-11-04 13-47-04.png>)
 
 ---
 
@@ -233,9 +235,7 @@ examples/webapp
         └── patch-annotations.yaml
 ```
 
-> **Screenshot evidence:** `evidence/task1-tree.png`
->
-> ![Task 1 - repository tree](evidence/task1-tree.png)
+![alt text](<evidence/Screenshot from 2026-11-04 13-48-29.png>)
 
 #### Base files
 
@@ -501,6 +501,7 @@ Only in `overlays/<env>/`. The `kustomization.yaml` fields `namespace`, `labels`
 ```sh
 kubectl kustomize examples/webapp/base
 ```
+![alt text](<evidence/Screenshot from 2026-11-04 13-49-40.png>)
 
 The base is **not** applied. It is only rendered.
 
@@ -523,6 +524,7 @@ kind: Deployment
           name: web-content-gmg9hgkk25
         name: web-content
 ```
+![alt text](<evidence/Screenshot from 2026-11-04 13-50-34.png>)
 
 Findings:
 
@@ -534,13 +536,6 @@ Findings:
 | Hash suffix | `gmg9hgkk25` |
 | Rewritten reference | `spec.template.spec.volumes[0].configMap.name: web-content-gmg9hgkk25` (the `name: web-content` lines left over are the volume name and the volumeMount name, which are not ConfigMap references) |
 
-> **Screenshot evidence:** `evidence/task2-render-base.png`
->
-> ![Task 2 - render base](evidence/task2-render-base.png)
-
-> **Screenshot evidence:** `evidence/task2-grep-kind-and-configmap.png`
->
-> ![Task 2 - grep kind and web-content](evidence/task2-grep-kind-and-configmap.png)
 
 #### Checkpoint — why is the ConfigMap name not exactly `web-content`?
 
@@ -612,10 +607,7 @@ Diff excerpt:
 -          name: web-content-fb4bcc97t6
 +          name: web-content-tg96t2cg8b
 ```
-
-> **Screenshot evidence:** `evidence/task3-dev-prod-diff.png`
->
-> ![Task 3 - dev vs prod diff](evidence/task3-dev-prod-diff.png)
+![alt text](<evidence/Screenshot from 2026-11-04 13-53-26.png>)
 
 #### Environment differences found (more than five)
 
@@ -677,9 +669,7 @@ spec:
         name: web-content
 ```
 
-> **Screenshot evidence:** `evidence/task4-render-dev.png`
->
-> ![Task 4 - render dev](evidence/task4-render-dev.png)
+![alt text](<evidence/Screenshot from 2026-11-04 13-55-05.png>)
 
 **2. Diff**
 
@@ -689,9 +679,7 @@ kubectl diff -k examples/webapp/overlays/dev || true
 
 Every object is new at this point, so the diff shows each one (Namespace, ConfigMap, Service, Deployment) as fully added (`+`). `kubectl diff` exits with code 1 when there are differences, and `|| true` stops that from being treated as an error.
 
-> **Screenshot evidence:** `evidence/task4-diff-dev.png`
->
-> ![Task 4 - diff dev](evidence/task4-diff-dev.png)
+![alt text](<evidence/Screenshot from 2026-11-04 13-56-13.png>)
 
 **3. Apply**
 
@@ -708,9 +696,7 @@ service/webapp created
 deployment.apps/webapp created
 ```
 
-> **Screenshot evidence:** `evidence/task4-apply-dev.png`
->
-> ![Task 4 - apply dev](evidence/task4-apply-dev.png)
+![alt text](<evidence/Screenshot from 2026-11-04 13-56-49.png>)
 
 **4. Verify**
 
@@ -721,14 +707,7 @@ kubectl rollout status deployment/webapp -n webapp-dev
 
 kubectl get all -n webapp-dev -o wide > evidence/task4-get-all-webapp-dev.txt
 ```
-
-> **Screenshot evidence:** `evidence/task4-get-all-dev.png`
->
-> ![Task 4 - get all -n webapp-dev](evidence/task4-get-all-dev.png)
-
-> **Screenshot evidence:** `evidence/task4-configmap-rollout-dev.png`
->
-> ![Task 4 - configmap and rollout status](evidence/task4-configmap-rollout-dev.png)
+![alt text](<evidence/Screenshot from 2026-11-04 13-57-46.png>)
 
 **Observation:** The Deployment is still called `webapp`, the same name as in the base. It has no `dev-` prefix. The environments are kept apart by the namespace (`webapp-dev`), not by resource names. The ConfigMap in the cluster is `web-content-fb4bcc97t6`, which matches the rendered output exactly.
 
@@ -741,6 +720,7 @@ Terminal 1:
 ```sh
 kubectl port-forward -n webapp-dev service/webapp 8080:80
 ```
+![alt text](<evidence/Screenshot from 2026-11-04 14-03-12.png>)
 
 Terminal 2:
 
@@ -760,16 +740,9 @@ Expected response:
   </body>
 </html>
 ```
+![alt text](<evidence/Screenshot from 2026-11-04 14-05-53.png>)
 
 The response identifies the **development** environment. I stopped the port-forward with `Ctrl+C` afterwards.
-
-> **Screenshot evidence:** `evidence/task5-port-forward.png`
->
-> ![Task 5 - port-forward](evidence/task5-port-forward.png)
-
-> **Screenshot evidence:** `evidence/task5-curl-dev.png`
->
-> ![Task 5 - curl dev page](evidence/task5-curl-dev.png)
 
 ---
 
@@ -784,10 +757,7 @@ kubectl get pods -n webapp-dev -o wide
 kubectl get configmap -n webapp-dev > evidence/task6-configmap-before.txt
 kubectl get pods -n webapp-dev -o wide > evidence/task6-pods-before.txt
 ```
-
-> **Screenshot evidence:** `evidence/task6-before.png`
->
-> ![Task 6 - configmap and pods before](evidence/task6-before.png)
+![alt text](<evidence/Screenshot from 2026-11-04 14-07-25.png>)
 
 **Change the page**
 
@@ -804,6 +774,7 @@ sed -i 's#<h1>DEV - development environment</h1>#<h1>DEV v2 — configuration ch
   examples/webapp/overlays/dev/index.html
 grep '<h1>' examples/webapp/overlays/dev/index.html
 ```
+![alt text](<evidence/Screenshot from 2026-11-04 14-08-33.png>)
 
 **Render again before applying**
 
@@ -822,9 +793,7 @@ Output:
 
 The render shows the new hash before anything reaches the cluster: `fb4bcc97t6` → `6h85f4dhfc`.
 
-> **Screenshot evidence:** `evidence/task6-render-new-hash.png`
->
-> ![Task 6 - render shows new hash](evidence/task6-render-new-hash.png)
+![alt text](<evidence/Screenshot from 2026-11-04 14-08-33.png>)
 
 **Apply and watch the rollout**
 
@@ -843,9 +812,7 @@ service/webapp unchanged
 deployment.apps/webapp configured
 ```
 
-> **Screenshot evidence:** `evidence/task6-apply-rollout.png`
->
-> ![Task 6 - apply and rollout](evidence/task6-apply-rollout.png)
+![alt text](<evidence/Screenshot from 2026-11-04 14-11-58.png>)
 
 **After the change**
 
@@ -858,9 +825,7 @@ kubectl get configmap -n webapp-dev > evidence/task6-configmap-after.txt
 kubectl get pods -n webapp-dev -o wide > evidence/task6-pods-after.txt
 ```
 
-> **Screenshot evidence:** `evidence/task6-after.png`
->
-> ![Task 6 - configmap and pods after](evidence/task6-after.png)
+![alt text](<evidence/Screenshot from 2026-11-04 14-13-34.png>)
 
 Optional check that the new page is being served:
 
@@ -869,17 +834,8 @@ kubectl port-forward -n webapp-dev service/webapp 8080:80 &
 sleep 2; curl -s http://127.0.0.1:8080 | grep '<h1>'; kill %1
 ```
 
-> **Screenshot evidence:** `evidence/task6-curl-v2.png`
->
-> ![Task 6 - curl shows DEV v2](evidence/task6-curl-v2.png)
+![alt text](<evidence/Screenshot from 2026-11-04 14-23-08.png>)
 
-**Recorded evidence** (fill in from the screenshots)
-
-| | Before | After |
-|---|---|---|
-| Generated ConfigMap | `web-content-fb4bcc97t6` | `web-content-6h85f4dhfc` |
-| Pod name(s) | `webapp-<rs-hash-1>-<pod-id>` ← *fill in* | `webapp-<rs-hash-2>-<pod-id>` ← *fill in* |
-| ReplicaSet hash in the Pod name | *fill in* | *fill in* (different) |
 
 `kubectl get configmap` now lists **both** ConfigMaps. `kubectl apply -k` does not delete the old one, because nothing is pruned. The old Pod was terminated and a new Pod with a new ReplicaSet hash in its name replaced it.
 
@@ -917,14 +873,11 @@ kubectl apply -k examples/webapp/overlays/prod
 kubectl rollout status deployment/webapp -n webapp-staging
 kubectl rollout status deployment/webapp -n webapp-prod
 ```
+![alt text](<evidence/Screenshot from 2026-11-04 14-24-41.png>)
 
-> **Screenshot evidence:** `evidence/task7-diff-apply-staging.png`
->
-> ![Task 7 - diff and apply staging](evidence/task7-diff-apply-staging.png)
+![alt text](<evidence/Screenshot from 2026-11-04 14-24-54.png>)
 
-> **Screenshot evidence:** `evidence/task7-diff-apply-prod.png`
->
-> ![Task 7 - diff and apply prod](evidence/task7-diff-apply-prod.png)
+![alt text](<evidence/Screenshot from 2026-11-04 14-25-08.png>)
 
 Verify all namespaces:
 
@@ -936,21 +889,17 @@ kubectl get deploy -A -l app.kubernetes.io/name=webapp > evidence/task7-deployme
 kubectl get pods -A -l app.kubernetes.io/name=webapp -o wide > evidence/task7-pods.txt
 ```
 
-> **Screenshot evidence:** `evidence/task7-get-deploy-all.png`
->
-> ![Task 7 - deployments across namespaces](evidence/task7-get-deploy-all.png)
+![alt text](<evidence/Screenshot from 2026-11-04 14-26-15.png>)
 
-> **Screenshot evidence:** `evidence/task7-get-pods-all.png`
->
-> ![Task 7 - pods across namespaces](evidence/task7-get-pods-all.png)
+![alt text](<evidence/Screenshot from 2026-11-04 14-26-27.png>)
 
 **Replica counts by environment**
 
 | Environment | Namespace | Desired replicas | Ready (from `kubectl get deploy`) | Image | Nodes used |
 |---|---|---|---|---|---|
-| dev | `webapp-dev` | 1 | *1/1* | `nginx:1.30-alpine` | *fill in* |
-| staging | `webapp-staging` | 2 | *2/2* | `nginx:1.31-alpine` | *fill in* |
-| prod | `webapp-prod` | 3 | *3/3* | `nginx:1.31-alpine` | *fill in* |
+| dev | `webapp-dev` | 1 | 1/1 | `nginx:1.30-alpine` | `worker-node-2` (1 Pod) |
+| staging | `webapp-staging` | 2 | 2/2 | `nginx:1.31-alpine` | `worker-node-1` (1 Pod), `worker-node-2` (1 Pod) |
+| prod | `webapp-prod` | 3 | 3/3 | `nginx:1.31-alpine` | `worker-node-1` (2 Pods), `worker-node-2` (1 Pod) |
 
 The label selector `app.kubernetes.io/name=webapp` finds the Deployment in every namespace because the base sets that label and every overlay inherits it. The overlays only add `environment=<env>` beside it. `kubectl get pods -o wide` shows the scheduler spreading Pods across `worker-node-1` and `worker-node-2`.
 
@@ -977,23 +926,14 @@ Rendered container resources for prod:
             memory: 128Mi    # from the prod patch (base was 64Mi)
 ```
 
-> **Screenshot evidence:** `evidence/task8-patch-file.png`
->
-> ![Task 8 - patch-resources.yaml](evidence/task8-patch-file.png)
-
-> **Screenshot evidence:** `evidence/task8-rendered-resources.png`
->
-> ![Task 8 - rendered prod resources](evidence/task8-rendered-resources.png)
+![alt text](<evidence/Screenshot from 2026-11-04 14-27-27.png>)
 
 Also confirm on the live object:
 
 ```sh
 kubectl get deploy webapp -n webapp-prod -o jsonpath='{.spec.template.spec.containers[0].resources}{"\n"}'
 ```
-
-> **Screenshot evidence:** `evidence/task8-live-resources.png`
->
-> ![Task 8 - live prod resources](evidence/task8-live-resources.png)
+![alt text](<evidence/Screenshot from 2026-11-04 14-28-11.png>)
 
 #### Questions
 
@@ -1102,10 +1042,7 @@ metadata:
   </body>
 </html>
 ```
-
-> **Screenshot evidence:** `evidence/task9-qa-files.png`
->
-> ![Task 9 - QA overlay files](evidence/task9-qa-files.png)
+![alt text](<evidence/Screenshot from 2026-11-04 14-31-36.png>)
 
 **Render and confirm the annotation before going further**
 
@@ -1134,9 +1071,7 @@ spec:
 
 The annotation `training.example.com/owner: qa-team` is present. The base `description` annotation is also still there, which shows the patch added a key and did not replace the whole map.
 
-> **Screenshot evidence:** `evidence/task9-render-qa-annotation.png`
->
-> ![Task 9 - rendered QA annotation](evidence/task9-render-qa-annotation.png)
+![alt text](<evidence/Screenshot from 2026-11-04 14-32-55.png>)
 
 **Diff, apply, verify**
 
@@ -1150,13 +1085,9 @@ kubectl get deployment webapp -n webapp-qa -o yaml > evidence/task9-qa-deploymen
 kubectl get deployment webapp -n webapp-qa -o jsonpath='{.metadata.annotations}{"\n"}{.spec.replicas}{"\n"}'
 ```
 
-> **Screenshot evidence:** `evidence/task9-diff-apply-qa.png`
->
-> ![Task 9 - diff and apply qa](evidence/task9-diff-apply-qa.png)
+![alt text](<evidence/Screenshot from 2026-11-04 14-34-53.png>)
 
-> **Screenshot evidence:** `evidence/task9-get-deploy-qa-yaml.png`
->
-> ![Task 9 - deployment yaml in webapp-qa](evidence/task9-get-deploy-qa-yaml.png)
+![alt text](<evidence/Screenshot from 2026-11-04 14-35-16.png>)
 
 Verify with `curl` that the QA page is served:
 
@@ -1164,11 +1095,7 @@ Verify with `curl` that the QA page is served:
 kubectl port-forward -n webapp-qa service/webapp 8081:80 &
 sleep 2; curl -s http://127.0.0.1:8081 | grep '<h1>'; kill %1
 ```
-
-> **Screenshot evidence:** `evidence/task9-curl-qa.png`
->
-> ![Task 9 - curl qa page](evidence/task9-curl-qa.png)
-
+![alt text](<evidence/Screenshot from 2026-11-04 14-38-42.png>)
 ---
 
 ### Task 10 — Cleanup
@@ -1189,9 +1116,7 @@ kubectl delete -k examples/webapp/overlays/prod
 kubectl delete -k examples/webapp/overlays/qa
 ```
 
-> **Screenshot evidence:** `evidence/task10-delete.png`
->
-> ![Task 10 - delete overlays](evidence/task10-delete.png)
+![alt text](<evidence/Screenshot from 2026-11-04 14-39-59.png>)
 
 Verify:
 
@@ -1201,9 +1126,7 @@ kubectl get ns | grep 'webapp-' || true
 
 No output (or namespaces still in `Terminating` for a few seconds) means cleanup worked. Deleting an overlay deletes its `Namespace` object, and deleting a namespace removes everything inside it. That includes the old `web-content-fb4bcc97t6` ConfigMap in dev, which `delete -k` would not have removed on its own because it is no longer in the rendered output.
 
-> **Screenshot evidence:** `evidence/task10-verify-ns.png`
->
-> ![Task 10 - no webapp namespaces](evidence/task10-verify-ns.png)
+![alt text](<evidence/Screenshot from 2026-11-04 14-40-34.png>)
 
 Optionally remove the cluster:
 
@@ -1211,6 +1134,7 @@ Optionally remove the cluster:
 kind delete cluster --name dso202-p5
 kind get clusters
 ```
+![alt text](<evidence/Screenshot from 2026-11-04 14-41-10.png>)
 
 ---
 
@@ -1281,26 +1205,11 @@ kind: Deployment
           name: sandbox-web-content-d4dk9d924k   # reference rewritten
         name: web-content                    # volume name unchanged
 ```
-
-> **Screenshot evidence:** `evidence/challenge-render-sandbox.png`
->
-> ![Challenge - rendered sandbox](evidence/challenge-render-sandbox.png)
+![alt text](<evidence/Screenshot from 2026-11-04 14-42-00.png>)
 
 **Result:** The output matched every prediction. Kustomize prefixed the three namespaced objects and rewrote the one cross-object reference (Deployment → ConfigMap). It left the Namespace, label values, the selector, and the container, volume and port names alone.
 
 **What this teaches:** Doing this with `sed` (find/replace `webapp` → `sandbox-webapp`) would also have changed the label values and selector, and could have missed the hashed ConfigMap reference. Kustomize changes the name and every field that refers to that name together, so references stay correct. That is what "reference-aware transformation" means.
-
-Optional deploy and cleanup:
-
-```sh
-kubectl apply -k examples/webapp/overlays/sandbox
-kubectl get all -n webapp-sandbox
-kubectl delete -k examples/webapp/overlays/sandbox
-```
-
-> **Screenshot evidence:** `evidence/challenge-apply-sandbox.png`
->
-> ![Challenge - sandbox deployed](evidence/challenge-apply-sandbox.png)
 
 ---
 
@@ -1366,10 +1275,7 @@ sed -i 's#example.com~1owner#example.com/owner#' /tmp/webapp-mistake/overlays/qa
 kubectl kustomize /tmp/webapp-mistake/overlays/qa      # shows the "missing path" error
 rm -rf /tmp/webapp-mistake
 ```
-
-> **Screenshot evidence:** `evidence/reflection-json6902-error.png`
->
-> ![Reflection - JSON 6902 path error](evidence/reflection-json6902-error.png)
+![alt text](<evidence/Screenshot from 2026-11-04 14-43-52.png>)
 
 **What I learned**
 
@@ -1405,4 +1311,4 @@ rm -rf /tmp/webapp-mistake
 - RFC 6901 — JSON Pointer (`~0` / `~1` escaping): <https://www.rfc-editor.org/rfc/rfc6901>
 - kind documentation — Configuration: <https://kind.sigs.k8s.io/docs/user/configuration/>
 - DSO202 course material — *03-kind-hands-on-lab: Environment-Specific Configuration with Kustomize on Kind* (sarojsanyasi, HackMD).
-# AS2025_DSO202_02230289_Practical-05
+

@@ -1,0 +1,6 @@
+# JSON 6902 patch: an explicit list of operations on explicit paths.
+# The "/" inside the annotation key must be escaped as "~1"
+# (RFC 6901), otherwise it is read as a path separator.
+- op: add
+  path: /metadata/annotations/training.example.com~1owner
+  value: qa-team

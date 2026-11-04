@@ -1,0 +1,20 @@
+# Strategic merge patch for production resource policy.
+# The container is matched by name (nginx). Only the values listed here
+# change; limits.cpu is not listed, so the base value (250m) is kept.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: webapp
+  annotations:
+    training.example.com/change-window: "sunday-02:00-04:00"
+spec:
+  template:
+    spec:
+      containers:
+        - name: nginx
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              memory: 256Mi

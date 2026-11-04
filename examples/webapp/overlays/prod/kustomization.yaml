@@ -1,0 +1,33 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: webapp-prod
+
+resources:
+  - ../../base
+  - namespace.yaml
+
+labels:
+  - pairs:
+      environment: prod
+    includeTemplates: true
+
+commonAnnotations:
+  training.example.com/tier: production
+
+replicas:
+  - name: webapp
+    count: 3
+
+images:
+  - name: nginx
+    newTag: 1.31-alpine
+
+configMapGenerator:
+  - name: web-content
+    behavior: replace
+    files:
+      - index.html
+
+patches:
+  - path: patch-resources.yaml
